@@ -259,6 +259,28 @@ export class MinecraftMitm {
      * @param {Buffer} data 
      */
     async handleOtherPacket(data, packetID, socketID) {
+        if(packetID == 0x3b) {
+            // chat message, encrypted? anyway, this is not important
+            let newData = data.subarray(16);
+            [_index, newData] = Packet.readVarInt(newData);
+        } else if(packetID == 0x05) {
+            // command
+            let newData = data, len;
+            [len, newData] = Packet.readVarInt(newData);
+            // remaining is string
+            const cmd = newData.toString("utf-8");
+            Logger.log("chat command", this.sockets[socketID][1].username, cmd);
+            this.sockets[socketID][3] += `command out ${cmd}`;
+        } else if(packetID == 0x07) {
+            // message
+            let newData = data, len;
+            [len, newData] = Packet.readVarInt(newData);
+            // remaining len bytes is string
+            const msg = newData.subarray(0, len).toString("utf-8");
+            Logger.log("chat message", this.sockets[socketID][1].username, msg);
+            this.sockets[socketID][3] += `message out ${msg}`;
+        }
+
         // Logger.log("other packet", packetID);
         await this.sockets[socketID][2].waitTillReady();
         this.sockets[socketID][3] += `C ${this.sockets[socketID][1].stage} ${packetID}\n`;
