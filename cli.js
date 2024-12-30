@@ -2,6 +2,9 @@
 import { MinecraftMitm } from "./index.js";
 import { parseArgs } from "util";
 
+process.on("uncaughtException", e => console.error(e));
+process.on("unhandledRejection", e => console.error(e));
+
 const { values, positionals } = parseArgs({ "options": {
     "help": {
         "type": "boolean",
