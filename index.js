@@ -75,7 +75,7 @@ export class MinecraftMitm {
             ).packetID;
             if(this.logAll) this.sockets[socketID][3] += `S ${this.sockets[socketID][1].stage} ${id}\n`;
             if(this.logAll) this.sockets[socketID][3] += `->C ${id}\n`;
-            this.out.push(() => this.writeAsync(this.sockets[socketID][0], d));
+            this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], d));
         });
         Logger.log("handler set!");
 
@@ -148,7 +148,7 @@ export class MinecraftMitm {
             res
         ]));
         if(this.logAll) this.sockets[socketID][3] += `->C ${0}\n`;
-        this.out.push(() => this.writeAsync(this.sockets[socketID][0], resEnc));
+        this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], resEnc));
     }
 
     writeAsync(s, d) {
@@ -197,7 +197,7 @@ export class MinecraftMitm {
             const pubKeyDer = this.getPubKey();
             const verifyTokenLen = 4;
             if(this.logAll) this.sockets[socketID][3] += `->C ${1}\n`;
-            this.out.push(() => this.writeAsync(this.sockets[socketID][0], Packet.construct(1, Buffer.concat([
+            this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], Packet.construct(1, Buffer.concat([
                 Packet.constructString(""),
                 Packet.constructVarInt(pubKeyDer.length),
                 pubKeyDer,
@@ -208,6 +208,7 @@ export class MinecraftMitm {
             this.sockets[socketID][2].compressCb = size => {
                 if(this.logAll) this.sockets[socketID][3] += `->C compress ${3}\n`;
                 this.out.push(async () => {
+                    if(!this.sockets[socketID]) return;
                     await this.writeAsync(this.sockets[socketID][0], Packet.construct(3, Packet.constructVarInt(size)));
                     this.sockets[socketID][1].compress = true;
                     this.sockets[socketID][1].compressSize = size;
@@ -224,7 +225,7 @@ export class MinecraftMitm {
                 let data = Packet.constructSmart(2, pack.data, this.sockets[socketID][2].compress, this.sockets[socketID][2].compressSize);
                 // Logger.log("deflated resp", data);
                 if(this.logAll) this.sockets[socketID][3] += `->C WAIT4LOGIN ${2}\n`;
-                this.out.push(() => this.writeAsync(this.sockets[socketID][0], data));
+                this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], data));
                 this.sockets[socketID][1].stage = stages.PLAY;
                 this.sockets[socketID][2].loggedIn = true;
                 done = true;
@@ -292,7 +293,7 @@ export class MinecraftMitm {
         //     rawPack = Packet.compress(rawPack);
         // Logger.log("2bsent", rawPack);
         if(this.logAll) this.sockets[socketID][3] += `->S ${packetID}\n`;
-        this.out.push(() => this.writeAsync(this.sockets[socketID][2].client, rawPack));
+        this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][2].client, rawPack));
     }
 
     // /**
