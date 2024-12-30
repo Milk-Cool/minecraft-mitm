@@ -1,4 +1,4 @@
-export default function posPlugin(from, packetID, data, Packet, meta) {
+export default function posModule(from, packetID, data, Packet, meta) {
     if(from === "client") {
         if(packetID !== 0x1c) return;
         // position

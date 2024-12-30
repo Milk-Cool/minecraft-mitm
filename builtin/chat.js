@@ -1,4 +1,4 @@
-export default function chatPlugin(from, packetID, data, Packet, meta) {
+export default function chatModule(from, packetID, data, Packet, meta) {
     if(from !== "client") return;
     if(packetID === 0x05) {
         // command
