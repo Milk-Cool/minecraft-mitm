@@ -1,0 +1,25 @@
+{
+  "name": "minecraft-mitm",
+  "version": "0.1.0",
+  "description": "something like mitmproxy but for minecraft",
+  "main": "index.js",
+  "type": "module",
+  "bin": "cli.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Milk-Cool/minecraft-mitm.git"
+  },
+  "keywords": [
+    "minecraft",
+    "mitmproxy"
+  ],
+  "author": "Milk_Cool",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Milk-Cool/minecraft-mitm/issues"
+  },
+  "homepage": "https://github.com/Milk-Cool/minecraft-mitm#readme",
+  "dependencies": {
+    "varint": "^6.0.0"
+  }
+}
