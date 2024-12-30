@@ -10,14 +10,16 @@ import { Packet } from "./packet.js";
 import { sleep } from "./sleep.js";
 import { generateKeyPairSync, randomBytes } from "crypto";
 import fs from "fs";
+import path, { join } from "path";
 import { compressed } from "./compressed.js";
 
 /** @typedef {{ version: string, protocolVersion: number, encrypt: boolean, compressAfter: number, logAll: string }} MinecraftMitmOptions */
 export class MinecraftMitm {
     /**
      * @param {MinecraftMitmOptions} opts 
+     * @param {string[]} modules
      */
-    constructor(port, destAddr, destPort, opts) {
+    constructor(port, destAddr, destPort, opts, modules = []) {
         this.q = new LockQueue();
         this.out = new LockQueue();
 
@@ -30,6 +32,8 @@ export class MinecraftMitm {
         this.encrypt = opts.encrypt ?? false;
         this.compressAfter = opts.compressAfter ?? -1;
         this.logAll = opts.logAll ?? false;
+
+        this.modulesRaw = modules;
 
         // const keys = generateKeyPairSync("rsa", { "modulusLength": 1024 });
         // this.privateKey = keys.privateKey;
@@ -53,6 +57,20 @@ export class MinecraftMitm {
         });
     }
 
+    async initModules() {
+
+        this.modules = [];
+        for(const module of this.modulesRaw) {
+            let moduleFunc;
+            if(fs.existsSync(module))
+                ({ default: moduleFunc } = await import(path.resolve(module)));
+            else
+                ({ default: moduleFunc } = await import(join(import.meta.dirname, module)));
+            this.modules.push(moduleFunc);
+            Logger.log("Loaded module!", module);
+        }
+    }
+
     /**
      * @param {Socket} socket 
      */
@@ -70,9 +88,17 @@ export class MinecraftMitm {
         this.sockets[socketID][2].handlerSet = true;
         this.sockets[socketID][2].cbs.push(d => {
             if(this.sockets[socketID][1].stage != stages.PLAY) return;
-            const id = new Packet(d, 
+            const pack = new Packet(d, 
                 this.sockets[socketID][2].compress && compressed(d, this.sockets[socketID][2].compressSize)/*this.sockets[socketID][1].compress && this.getlen(d) > this.sockets[socketID][1].compressSize*/
-            ).packetID;
+            );
+            const id = pack.packetID;
+            for(const module of this.modules) {
+                if(module("server", id, pack.data, Packet, {
+                    "socketID": socketID,
+                    "username": this.sockets[socketID][1].username
+                }) === false)
+                    return;
+            }
             if(this.logAll) this.sockets[socketID][3] += `S ${this.sockets[socketID][1].stage} ${id}\n`;
             if(this.logAll) this.sockets[socketID][3] += `->C ${id}\n`;
             this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], d));
@@ -265,22 +291,14 @@ export class MinecraftMitm {
             // chat message, encrypted? anyway, this is not important
             let newData = data.subarray(16);
             [_index, newData] = Packet.readVarInt(newData);
-        } else if(packetID == 0x05) {
-            // command
-            let newData = data, len;
-            [len, newData] = Packet.readVarInt(newData);
-            // remaining is string
-            const cmd = newData.toString("utf-8");
-            Logger.log("chat command", this.sockets[socketID][1].username, cmd);
-            if(this.logAll) this.sockets[socketID][3] += `command out ${cmd}`;
-        } else if(packetID == 0x07) {
-            // message
-            let newData = data, len;
-            [len, newData] = Packet.readVarInt(newData);
-            // remaining len bytes is string
-            const msg = newData.subarray(0, len).toString("utf-8");
-            Logger.log("chat message", this.sockets[socketID][1].username, msg);
-            if(this.logAll) this.sockets[socketID][3] += `message out ${msg}`;
+        }
+
+        for(const module of this.modules) {
+            if(module("client", packetID, data, Packet, {
+                "socketID": socketID,
+                "username": this.sockets[socketID][1].username
+            }) === false)
+                return;
         }
 
         // Logger.log("other packet", packetID);

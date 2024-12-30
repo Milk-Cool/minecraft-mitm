@@ -28,18 +28,23 @@ const { values, positionals } = parseArgs({ "options": {
     "log-all": {
         "type": "boolean",
         "short": "a"
+    },
+    "module": {
+        "type": "string",
+        "short": "m",
+        "multiple": true
     }
 }, "allowPositionals": true });
 if(values.help) {
     console.log(`minecrat-mitm
 
 Usage:
-minecraft-mitm [-ha] [-l PORT] [-v VERSION] [-p PROTOCOL_VERSION] <ADDR>
+minecraft-mitm [-ha] [-l PORT] [-v VERSION] [-p PROTOCOL_VERSION] [-m MODULE1 [-m MODULE2 ...]] <ADDR>
 
 Examples:
 minecraft-mitm -h
 minecraft-mitm -a localhost
-minecraft-mitm -l 30000 localhost
+minecraft-mitm -l 30000 -m builtin/chat.js localhost
 minecraft-mitm -v 1.12.2 -p 340 localhost:25595
 
 Description:
@@ -64,5 +69,5 @@ const mitm = new MinecraftMitm(parseInt(values.listen), addr, port, {
     "version": values.version,
     "protocolVersion": parseInt(values["protocol-version"]),
     "logAll": values["log-all"]
-});
-mitm.startServer();
+}, values.module);
+mitm.initModules().then(() => mitm.startServer());
