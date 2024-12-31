@@ -1,6 +1,6 @@
 {
   "name": "minecraft-mitm",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "something like mitmproxy but for minecraft",
   "main": "index.js",
   "type": "module",
@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/Milk-Cool/minecraft-mitm#readme",
   "dependencies": {
+    "prismarine-nbt": "^2.7.0",
     "varint": "^6.0.0"
   }
 }

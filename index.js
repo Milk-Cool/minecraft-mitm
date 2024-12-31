@@ -12,6 +12,7 @@ import { generateKeyPairSync, randomBytes } from "crypto";
 import fs from "fs";
 import path, { join } from "path";
 import { compressed } from "./compressed.js";
+import nbt from "prismarine-nbt";
 
 /** @typedef {{ version: string, protocolVersion: number, encrypt: boolean, compressAfter: number, logAll: string }} MinecraftMitmOptions */
 export class MinecraftMitm {
@@ -57,8 +58,25 @@ export class MinecraftMitm {
         });
     }
 
-    async initModules() {
+    getModuleData(socketID) {
+        return {
+            "socketID": socketID,
+            "username": this.sockets[socketID][1].username,
+            "port": this.port,
+            "destAddr": this.destAddr,
+            "destPort": this.destPort,
+            "version": this.version,
+            "protocolVersion": this.protocolVersion,
+            "modulesStr": this.modulesRaw,
+            "logAll": this.logAll
+        };
+    }
 
+    getModuleLibs() {
+        return { nbt };
+    }
+
+    async initModules() {
         this.modules = [];
         for(const module of this.modulesRaw) {
             let moduleFunc;
@@ -92,13 +110,21 @@ export class MinecraftMitm {
                 this.sockets[socketID][2].compress && compressed(d, this.sockets[socketID][2].compressSize)/*this.sockets[socketID][1].compress && this.getlen(d) > this.sockets[socketID][1].compressSize*/
             );
             const id = pack.packetID;
+            let out = null;
             for(const module of this.modules) {
-                if(module("server", id, pack.data, Packet, {
-                    "socketID": socketID,
-                    "username": this.sockets[socketID][1].username
-                }) === false)
+                const resp = module("server", id, pack.data, Packet, this.getModuleData(socketID), this.getModuleLibs());
+                if(resp === false)
                     return;
+                else if(typeof resp === "object") {
+                    out = resp;
+                    break;
+                }
             }
+            if(out !== null && out.direction === "reverse") {
+                d = Packet.constructSmart(out.id, out.data, this.sockets[socketID][1].compress, this.sockets[socketID][1].compressSize);
+                return this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][2].client, d));
+            }
+            if(out !== null) d = Packet.constructSmart(out.id, out.data, this.sockets[socketID][1].compress, this.sockets[socketID][1].compressSize);
             if(this.logAll) this.sockets[socketID][3] += `S ${this.sockets[socketID][1].stage} ${id}\n`;
             if(this.logAll) this.sockets[socketID][3] += `->C ${id}\n`;
             this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], d));
@@ -293,19 +319,29 @@ export class MinecraftMitm {
             [_index, newData] = Packet.readVarInt(newData);
         }
 
+        let out = null;
         for(const module of this.modules) {
-            if(module("client", packetID, data, Packet, {
-                "socketID": socketID,
-                "username": this.sockets[socketID][1].username
-            }) === false)
+            const resp = module("client", packetID, data, Packet, this.getModuleData(socketID), this.getModuleLibs());
+            if(resp === false)
                 return;
+            else if(typeof resp === "object") {
+                out = resp;
+                break;
+            }
+        }
+
+        if(out !== null && out.direction === "reverse") {
+            const d = Packet.constructSmart(out.id, out.data, this.sockets[socketID][1].compress, this.sockets[socketID][1].compressSize);
+            return this.out.push(() => this.sockets[socketID] && this.writeAsync(this.sockets[socketID][0], d));
         }
 
         // Logger.log("other packet", packetID);
         await this.sockets[socketID][2].waitTillReady();
         if(this.logAll) this.sockets[socketID][3] += `C ${this.sockets[socketID][1].stage} ${packetID}\n`;
         // Logger.log("from client", packetID);
-        let rawPack = Packet.constructSmart(packetID, data, this.sockets[socketID][1].compress, this.sockets[socketID][1].compressSize);
+        let rawPack = out === null
+            ? Packet.constructSmart(packetID, data, this.sockets[socketID][1].compress, this.sockets[socketID][1].compressSize)
+            : Packet.constructSmart(out.id, out.data, this.sockets[socketID][1].compress, this.sockets[socketID][1].compressSize);
         // let rawPack = Packet.construct(packetID, data);
         // if(this.sockets[socketID][1].compress)
         //     rawPack = Packet.compress(rawPack);
