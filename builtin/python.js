@@ -1,4 +1,4 @@
-// Executes python when given input in format /!5+2
+// Executes python when given input in format \5+2
 
 import { spawnSync } from "child_process";
 
